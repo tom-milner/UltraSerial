@@ -23,6 +23,8 @@ private:
 
     float calculatePhaseStep(float targetFreq);
 
+    float getAmplitudeScaleFactor(int x, float max, float min);
+
     void generateWavetable(TransmitConfig *config);
     PaStream *stream;
     PaStreamParameters outputParameters;

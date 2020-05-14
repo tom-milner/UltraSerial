@@ -28,11 +28,11 @@ int main() {
 
 
     Transmitter transmitter;
-    transmitter.init(220);
+    transmitter.init(1000);
 
-    uint8_t data[10]{10,20,40,30,25,15};
+    string data = "hello there my name is tom.";
 
-    transmitter.transmit(reinterpret_cast<char *>(data), 10);
+    transmitter.transmit(const_cast<char *>(data.c_str()), data.length());
 
 
     return 0;
