@@ -12,8 +12,6 @@
 struct TransmitConfig {
     float sine[TABLE_SIZE];
     float phase;
-    float highPhaseStep;
-    float lowPhaseStep;
     float controlPhaseStep;
 };
 

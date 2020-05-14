@@ -16,16 +16,12 @@ using std::string;
 
 #define TABLE_SIZE 200
 #define SAMPLE_RATE   44100
+#define FREQUENCY_INTERVAL 100
 
 
-int Transmitter::init(float ctrlFreq, float freqDelta) {
+int Transmitter::init(float ctrlFreq) {
 
     float controlFrequency = ctrlFreq;
-    float highFrequency = controlFrequency + freqDelta;
-    float lowFrequency = controlFrequency - freqDelta;
-
-    config.highPhaseStep = calculatePhaseStep(highFrequency);
-    config.lowPhaseStep = calculatePhaseStep(lowFrequency);
     config.controlPhaseStep = calculatePhaseStep(controlFrequency);
 
     // Generate wavetable.
@@ -53,35 +49,32 @@ int Transmitter::init(float ctrlFreq, float freqDelta) {
 void Transmitter::transmit(char *data, int dataLength) {
 
 
-    const int samplesPerBit = SAMPLE_RATE / 4;
-    const int samplesPerControl = SAMPLE_RATE / 16;
+    const int samplesPerBit = SAMPLE_RATE / 8 ;
+    const int samplesPerControl = SAMPLE_RATE / 32;
 
-    const unsigned long bufferLength = dataLength * 8 * (samplesPerBit + samplesPerControl );
+    const unsigned long bufferLength = dataLength * (samplesPerBit + samplesPerControl * 2);
     float *buffer = (float *) malloc(sizeof(float) * bufferLength);
 
     // fill buffer.
     int bIndex = 0;
     for (int i = 0; i < dataLength; i++) {
-        int bitCounter = 0;
-        char currByte = *data;
-        while (bitCounter < 8) {
-            int currBit = currByte & 0x01;
-//            for (int k = 0; k < samplesPerControl; k++) {
-//                buffer[bIndex] = getNextSineSample(&config, 2);
-//                bIndex++;
-//            }
-            for (int k = 0; k < samplesPerBit; k++) {
-                buffer[bIndex] = getNextSineSample(&config, currBit);
-                bIndex++;
-            }
+        cout << unsigned((uint8_t) data[i]) << endl;
+
+        // "Ramp Up/Down" to target frequency.
+        if (i != 0) {
+            float currStep =  calculatePhaseStep(FREQUENCY_INTERVAL * (uint8_t) data[i - 1]);
+            float targetPhaseStep = calculatePhaseStep(FREQUENCY_INTERVAL *(uint8_t) data[i]);
+            float stepPerSample  = (targetPhaseStep - currStep) / samplesPerControl;
             for (int k = 0; k < samplesPerControl; k++) {
-                buffer[bIndex] = 0;
+                currStep += stepPerSample;
+                buffer[bIndex] = getNextSineSample(&config, (uint8_t) data[i],  currStep);
                 bIndex++;
             }
-            currByte = currByte >> 1;
-            bitCounter++;
         }
-        data++;
+        for (int k = 0; k < samplesPerBit; k++) {
+            buffer[bIndex] = getNextSineSample(&config, (uint8_t) data[i]);
+            bIndex++;
+        }
     }
 
 
@@ -125,21 +118,16 @@ float Transmitter::calculatePhaseStep(float targetFreq) {
     return targetFreq / (SAMPLE_RATE / TABLE_SIZE);
 }
 
-float Transmitter::getNextSineSample(TransmitConfig *config, int level) {
+float Transmitter::getNextSineSample(TransmitConfig *config, uint8_t data, float step ) {
+    config->phase += config->controlPhaseStep + ( step == 0 ? calculatePhaseStep(data * FREQUENCY_INTERVAL) : step);
+    if (config->phase >= TABLE_SIZE) config->phase -= TABLE_SIZE; // % could be used here.
+
+
     int currIndex = (unsigned int) config->phase;
     int nextIndex = currIndex == TABLE_SIZE - 1 ? (unsigned int) 0 : currIndex + 1;
     float frac = config->phase - currIndex;
     float sample = config->sine[currIndex] + frac * (config->sine[nextIndex] - config->sine[currIndex]);
 
-    if (!level) {
-        config->phase += config->lowPhaseStep;
-    } else if (level == 1) {
-        config->phase += config->highPhaseStep;
-    } else {
-        config->phase += config->controlPhaseStep;
-    }
-
-    if (config->phase >= TABLE_SIZE) config->phase -= TABLE_SIZE; // % could be used here.
     return sample;
 }
 

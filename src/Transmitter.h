@@ -16,10 +16,10 @@ public:
 
     void transmit(char *data, int dataLength);
 
-    int init(float ctrlFreq, float freqDelta = 200);
+    int init(float ctrlFreq);
 
 private:
-    float getNextSineSample(TransmitConfig *config, int level);
+    float getNextSineSample(TransmitConfig *config, uint8_t data, float step = 0 );
 
     float calculatePhaseStep(float targetFreq);
 

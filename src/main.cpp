@@ -28,12 +28,11 @@ int main() {
 
 
     Transmitter transmitter;
-    transmitter.init(5000);
+    transmitter.init(220);
 
-    uint8_t  message = 170;
-    char *data = (char *) &message;
+    uint8_t data[10]{10,20,40,30,25,15};
 
-    transmitter.transmit(data,sizeof(uint8_t));
+    transmitter.transmit(reinterpret_cast<char *>(data), 10);
 
 
     return 0;
