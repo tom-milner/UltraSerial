@@ -53,10 +53,10 @@ int Transmitter::init(float ctrlFreq, float freqDelta) {
 void Transmitter::transmit(char *data, int dataLength) {
 
 
-    const int samplesPerBit = SAMPLE_RATE / 8;
+    const int samplesPerBit = SAMPLE_RATE / 4;
     const int samplesPerControl = SAMPLE_RATE / 16;
 
-    const unsigned long bufferLength = dataLength * 8 * (samplesPerBit + samplesPerControl);
+    const unsigned long bufferLength = dataLength * 8 * (samplesPerBit + samplesPerControl );
     float *buffer = (float *) malloc(sizeof(float) * bufferLength);
 
     // fill buffer.
@@ -66,12 +66,16 @@ void Transmitter::transmit(char *data, int dataLength) {
         char currByte = *data;
         while (bitCounter < 8) {
             int currBit = currByte & 0x01;
+//            for (int k = 0; k < samplesPerControl; k++) {
+//                buffer[bIndex] = getNextSineSample(&config, 2);
+//                bIndex++;
+//            }
             for (int k = 0; k < samplesPerBit; k++) {
-                buffer[bIndex] = getNextSineSample(&config, 2);
+                buffer[bIndex] = getNextSineSample(&config, currBit);
                 bIndex++;
             }
             for (int k = 0; k < samplesPerControl; k++) {
-                buffer[bIndex] = getNextSineSample(&config, currBit);
+                buffer[bIndex] = 0;
                 bIndex++;
             }
             currByte = currByte >> 1;

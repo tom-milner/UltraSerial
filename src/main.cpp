@@ -21,18 +21,19 @@ using std::string;
 
 int main() {
 
-    Receiver receiver;
-    receiver.init(880);
-    receiver.receive();
+//    Receiver receiver;
+//    receiver.init(880);
+//    cout << "Listening..." << endl;
+//    receiver.receive();
 
 
-//    Transmitter transmitter;
-//    transmitter.init(880);
-//
-//    string message = "H";
-//    char *data = (char *) message.c_str();
-//
-//    transmitter.transmit(data, message.length());
+    Transmitter transmitter;
+    transmitter.init(5000);
+
+    uint8_t  message = 170;
+    char *data = (char *) &message;
+
+    transmitter.transmit(data,sizeof(uint8_t));
 
 
     return 0;

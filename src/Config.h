@@ -5,6 +5,7 @@
 #ifndef ULTRASERIAL_CONFIG_H
 #define ULTRASERIAL_CONFIG_H
 
+#include <fftw3.h>
 
 #define TABLE_SIZE 200
 
@@ -18,7 +19,7 @@ struct TransmitConfig {
 
 struct ReceiveConfig {
     int sampleIndex; // Our current index in the sample array.
-    float * recordedSamples;
+    fftw_complex * recordedSamples;
 };
 
 

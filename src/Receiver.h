@@ -23,7 +23,7 @@ private:
     PaStream *stream;
     PaStreamParameters inputParameters;
 
-    int processBuffer(const void *inputBuffer, void *outputBuffer, unsigned long samplesPerBuffer,
+    static int processBuffer(const void *inputBuffer, void *outputBuffer, unsigned long samplesPerBuffer,
                       const PaStreamCallbackTimeInfo *timeInfo, PaStreamCallbackFlags statusFlags, void *data);
 };
 
