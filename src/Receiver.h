@@ -22,7 +22,7 @@ private:
     PaError error;
     PaStream *stream;
     PaStreamParameters inputParameters;
-
+    static int startBitReceived;
     static int processBuffer(const void *inputBuffer, void *outputBuffer, unsigned long samplesPerBuffer,
                       const PaStreamCallbackTimeInfo *timeInfo, PaStreamCallbackFlags statusFlags, void *data);
 };

@@ -9,6 +9,7 @@ include_directories(/usr/local/include)
 
 add_executable(UltraSerial src/main.cpp src/Transmitter.cpp src/Transmitter.h src/Config.h src/Receiver.cpp src/Receiver.h)
 target_link_libraries(UltraSerial portaudio)
+target_link_libraries(UltraSerial fftw3)
 #
 #set_target_properties(UltraSerial PROPERTIES
 #        MACOSX_BUNDLE TRUE

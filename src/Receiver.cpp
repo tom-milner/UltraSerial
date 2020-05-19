@@ -11,22 +11,16 @@
 #include <string>
 #include "iostream"
 
-#define HEADER_SIZE 16
-#define SAMPLE_RATE   44100
-#define SAMPLES_PER_BUFFER SAMPLE_RATE/2
-
 
 using std::cout;
 using std::cerr;
 using std::endl;
 using std::string;
 
-
+/// Initialise the receiver.
 int Receiver::init(float ctrlFreq) {
 
-    config.sampleIndex = 0;
-//    config.recordedSamples = static_cast<fftw_complex *>(fftw_malloc(
-//            SAMPLES_PER_BUFFER)); // Allocate enough room for the header and a few bytes. Size will be increased once payload length is read.
+    config.inSignal = config.bufferCounter = 0 ;
 
     cout << "Initializing..." << endl;
     error = Pa_Initialize();
@@ -58,48 +52,55 @@ int Receiver::init(float ctrlFreq) {
 }
 
 
-// Read the buffer in.
+/// This is the callback function used by portaudio to process any incoming audio.
 int Receiver::processBuffer(const void *inputBuffer, void *outputBuffer, unsigned long samplesPerBuffer,
                             const PaStreamCallbackTimeInfo *timeInfo, PaStreamCallbackFlags statusFlags, void *data
 ) {
-    ReceiveConfig *config = (ReceiveConfig *) data;
-    const double *readPointer = (const double *) inputBuffer;
 
-    for (int i = 0; i < samplesPerBuffer; i++) {
-        config->recordedSamples[config->sampleIndex + i][0] =  *readPointer++; // Read the buffer into config.recorderSamples.
-        config->recordedSamples[config->sampleIndex + i][1] =  0; // Read the buffer into config.recorderSamples.
+    ReceiveConfig *config = (ReceiveConfig *) data;
+    const float * samples = (float *) inputBuffer;
+
+    /// If we haven't yet detected the start byte, or if it is time to read the next char, FFT the buffer.
+    if(!config->inSignal || config->bufferCounter ==  ProtocolConstants::BUFFERS_PER_CELL){
+        fftw_complex * fftBuffer = (fftw_complex *) fftw_malloc(samplesPerBuffer * sizeof(fftw_complex));
+        /// Read the samples into the FFT buffer.
+        for(int i = 0 ; i < samplesPerBuffer; i++){
+            fftBuffer[i][0] = samples[i];
+            fftBuffer[i][1] = 0;
+        }
+
+
+    }else{
+
     }
-    config->sampleIndex += samplesPerBuffer;
+    config->bufferCounter++;
     return paContinue;
 
 }
 
 void Receiver::receive() {
 
+    const int samplesPerBuffer = (ProtocolConstants::SAMPLES_PER_BYTE +
+                                 ProtocolConstants::SAMPLES_PER_BRIDGE) / ProtocolConstants::BUFFERS_PER_CELL;
     error = Pa_OpenStream(
             &stream,
             &inputParameters,
             NULL,
-            SAMPLE_RATE,
-            SAMPLES_PER_BUFFER,
+            ProtocolConstants::SAMPLE_RATE,
+            samplesPerBuffer,
             paClipOff,
             processBuffer,
             &config
     );
     cout << error << endl;
 
-    cout << config.sampleIndex << endl;
-
-//    fftw_plan plan = fftw_plan_dft_1d(SAMPLES_PER_BUFFER, config.recordedSamples);
+//    fftw_plan plan = fftw_plan_dft_1d(ProtocolConstants::SAMPLES_PER_BUFFER, config.recordedSamples);
 
     error = Pa_StartStream(stream);
     cout << error << endl;
 
     while (Pa_IsStreamActive(stream)) {
-        // Run fft every second.
-        if (config.sampleIndex % SAMPLE_RATE == 0) {
 
-        }
     }
 
 

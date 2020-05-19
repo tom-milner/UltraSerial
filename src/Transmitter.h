@@ -19,11 +19,11 @@ public:
     int init(float ctrlFreq);
 
 private:
-    float getNextSineSample(TransmitConfig *config, uint8_t data, float step = 0 );
+    float getNextSineSample(TransmitConfig *config);
 
     float calculatePhaseStep(float targetFreq);
 
-    float getAmplitudeScaleFactor(int x, float max, float min);
+    float getAmplitudeScaleFactor(int x, float totalSamples, float minAmplitude);
 
     void generateWavetable(TransmitConfig *config);
     PaStream *stream;
