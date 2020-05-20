@@ -14,11 +14,6 @@ using std::cerr;
 using std::endl;
 using std::string;
 
-#define RAMP_SAMPLES 500 /**< The number of samples to use to "ramp" up/down the signal.
- * This is only used to make the audio sound nicer.
- * I'm using "ramping" to describe either increasing the amplitude from 0 to 1 (up) or vice-versa (down).
- * */
-
 
 /**
  *  Set up the transmitter.
@@ -60,50 +55,36 @@ void Transmitter::transmit(char *data, int dataLength) {
 
 
     /// Initialise the audio buffer with the length of the data, plus the number of bridge samples, plus the ramp samples.
-    const unsigned long bufferLength = dataLength * (ProtocolConstants::SAMPLES_PER_BYTE + ProtocolConstants::SAMPLES_PER_BRIDGE) + RAMP_SAMPLES;
+    const unsigned long bufferLength = dataLength * (ProtocolConstants::SAMPLES_PER_BYTE);
     float *buffer = (float *) malloc(sizeof(float) * bufferLength); ///< One float per sample.
 
-
+    cout << ProtocolConstants::SAMPLES_PER_BYTE << endl;
     /**
      * Here we turn the characters into samples.
      * We use one frequency band per byte. Therefore, the protocol uses 255 different frequencies.
      * The size of each frequency band is determined by FREQUENCY_INTERVAL.
      */
     int bIndex = 0; ///< b(uffer)Index -  The index of the current sample in the buffer.
+    config.currPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[0]); ///< The phase step we need for the target frequency for the byte.
     for (int i = 0; i < dataLength; i++) {
 
-        /// Step to next frequency, and lower the amplitude as we do so.
-        float targetPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL *
-                                                   (uint8_t) data[i]); ///< The phase step we need to get to to reach the target frequency for the byte.
-
-        if (i != 0) { ///< We don't need to slowly step to the right frequency with the first byte.
-            float stepPerSample = (targetPhaseStep - config.currPhaseStep) /
-                                  ProtocolConstants::SAMPLES_PER_BRIDGE; ///< The amount of phase to step for each sample.
-            for (int k = 0; k < ProtocolConstants::SAMPLES_PER_BRIDGE; k++) {
-                config.currPhaseStep += stepPerSample; ///< Increase/Decrease the current phase step until we reach the required frequency.
-//                float amplitudeScaleFactor = getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BRIDGE,
-//                                                                     0.8); ///< We also reduce (and then increase) the amplitude during this stepping process - just for aesthetics!
-//                buffer[bIndex] = getNextSineSample(&config) * amplitudeScaleFactor;
-                buffer[bIndex] = getNextSineSample(&config);
-                bIndex++;
-            }
+        /// Write the samples of this frequency to the first 90% of the buffer;
+        int frequencyChangePoint = ProtocolConstants::SAMPLES_PER_BYTE * 0.85;
+        int k = 0;
+        for (; k < frequencyChangePoint; k++) {
+            buffer[bIndex++] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
         }
 
-        /// Now we have reached the target frequency, write the samples of this frequency to the buffer.
-        for (int k = 0; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
-            config.currPhaseStep = targetPhaseStep;
-            buffer[bIndex] = getNextSineSample(&config);
-            bIndex++;
+        /// Now start changing to the frequency of the next sample.
+        float nextPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[i + 1]);
+        float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_BYTE - frequencyChangePoint);
+        for (; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
+            config.currPhaseStep += stepsPerSample;
+            buffer[bIndex++] =
+                    getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
         }
-    }
+        config.currPhaseStep = nextPhaseStep;
 
-    /** "Ramp Down" the end of the signal so it doesn't sound as horrible.
-     * This is done by repeating the final sample whilst scaling down its amplitude.
-    */
-    for (int i = 0; i < RAMP_SAMPLES; i++) {
-        buffer[bIndex] = buffer[bIndex - 1] * getAmplitudeScaleFactor(i, RAMP_SAMPLES * 2,
-                                                                      0); ///< 'getAmplitudeScaleFactor' usually goes from 1 -> 0 -> 1. Here, we just want it to go to zero;
-        bIndex++;
     }
 
 /// The full buffer has been created!! Write it to an audio stream.
@@ -112,7 +93,7 @@ void Transmitter::transmit(char *data, int dataLength) {
             NULL,
             &outputParameters,
             ProtocolConstants::SAMPLE_RATE,
-            0,
+            0, ///< Put all the frames in one buffer!!
             paClipOff,
             nullptr,
             nullptr
@@ -137,20 +118,23 @@ void Transmitter::transmit(char *data, int dataLength) {
 }
 
 /// Scale the ampitude between 1 and minAmplitude depending on x.
-/// https://www.desmos.com/calculator/knngasmlah
+/// https://www.desmos.com/calculator/96tyqycvcz
 /// \param minAmplitude - The minimum amplitude to scale down to (0 ->1).
 /// \param totalSamples - The number of samples to scale.
 /// \param x - The current sample number (0 -> totalSamples).
 float Transmitter::getAmplitudeScaleFactor(int x, float totalSamples, float minAmplitude) {
-    float f = pow((x - totalSamples / 2) / (totalSamples / 2), 2); ///< This is a quadratic anchored at (0,1) and (totalSamples,1).
-    return f * (1-minAmplitude) + minAmplitude; ///< Adjust the graph to have  higher turning point (the value of minAmplitude).
+//    float f = pow((x - totalSamples / 2) / (totalSamples / 2), 2); ///< This is a quadratic anchored at (0,1) and (totalSamples,1). EDIT: Not anymore!! checkout link ^^^
+//    return f * (1-minAmplitude) + minAmplitude; ///< Adjust the graph to have  higher turning point (the value of minAmplitude).
+    float d = 2.2;
+    float s = 25;
+    float a = pow(((d * x) / totalSamples) - (d / 2), 2 * s);
+    return ((1 - minAmplitude) / (1 + a)) + minAmplitude;
 }
 
 /// Generate a simple wavetable containing a sin wave.
 void Transmitter::generateWavetable(TransmitConfig *config) {
     for (int i = 0; i < ProtocolConstants::TABLE_SIZE; i++) {
-        config->sine[i] = (float) sin(((double) i / (double) ProtocolConstants::TABLE_SIZE) * M_PI *
-                                      2); // /ProtocolConstantsTABLE_SIZE to keep scale factor between 1 and 0
+        config->sine[i] = (float) sin(((double) i / (double) ProtocolConstants::TABLE_SIZE) * M_PI * 2); // /ProtocolConstantsTABLE_SIZE to keep scale factor between 1 and 0
     }
 }
 

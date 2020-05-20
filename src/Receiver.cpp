@@ -20,7 +20,7 @@ using std::string;
 /// Initialise the receiver.
 int Receiver::init(float ctrlFreq) {
 
-    config.inSignal = config.bufferCounter = 0 ;
+    config.inSignal = config.bufferCounter = 0;
 
     cout << "Initializing..." << endl;
     error = Pa_Initialize();
@@ -58,30 +58,38 @@ int Receiver::processBuffer(const void *inputBuffer, void *outputBuffer, unsigne
 ) {
 
     ReceiveConfig *config = (ReceiveConfig *) data;
-    const float * samples = (float *) inputBuffer;
+    const float *samples = (float *) inputBuffer;
 
     /// If we haven't yet detected the start byte, or if it is time to read the next char, FFT the buffer.
-    if(!config->inSignal || config->bufferCounter ==  ProtocolConstants::BUFFERS_PER_CELL){
-        fftw_complex * fftBuffer = (fftw_complex *) fftw_malloc(samplesPerBuffer * sizeof(fftw_complex));
+    if (!config->inSignal ) {
+
         /// Read the samples into the FFT buffer.
-        for(int i = 0 ; i < samplesPerBuffer; i++){
-            fftBuffer[i][0] = samples[i];
-            fftBuffer[i][1] = 0;
+        for (int i = 0; i < samplesPerBuffer; i++) {
+            config->fftBuffer[i][0] = samples[i];
+            config->fftBuffer[i][1] = 0;
         }
+        fftw_execute(config->plan);
 
+        // Look for frequency bin with highest amplitude.
+        int highest = 0;
+        for (int i = 0; i < samplesPerBuffer; i++) {
+            if (config->fftBuffer[i][0] > highest) {
+                highest = i;
+            }
+        }
+        config->lastFreq = highest;
 
-    }else{
+    } else {
 
     }
-    config->bufferCounter++;
     return paContinue;
 
 }
 
 void Receiver::receive() {
 
-    const int samplesPerBuffer = (ProtocolConstants::SAMPLES_PER_BYTE +
-                                 ProtocolConstants::SAMPLES_PER_BRIDGE) / ProtocolConstants::BUFFERS_PER_CELL;
+    const int samplesPerBuffer = ProtocolConstants::SAMPLES_PER_BYTE / ProtocolConstants::BUFFERS_PER_BYTE;
+    cout << samplesPerBuffer << endl;
     error = Pa_OpenStream(
             &stream,
             &inputParameters,
@@ -95,13 +103,22 @@ void Receiver::receive() {
     cout << error << endl;
 
 //    fftw_plan plan = fftw_plan_dft_1d(ProtocolConstants::SAMPLES_PER_BUFFER, config.recordedSamples);
-
+    config.lastFreq = 0;
+    config.fftBuffer = (fftw_complex *) fftw_malloc(samplesPerBuffer * sizeof(fftw_complex));
+    config.plan = fftw_plan_dft_1d(samplesPerBuffer, config.fftBuffer, config.fftBuffer, FFTW_FORWARD, FFTW_ESTIMATE);
     error = Pa_StartStream(stream);
     cout << error << endl;
 
+    int lastLastFreq = 0;
     while (Pa_IsStreamActive(stream)) {
-
+        if (config.lastFreq != lastLastFreq) {
+            cout << config.lastFreq <<endl;
+            lastLastFreq = config.lastFreq;
+        }
     }
+
+    fftw_destroy_plan(config.plan);
+    fftw_free(config.fftBuffer);
 
 
 }

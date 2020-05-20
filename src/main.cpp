@@ -16,18 +16,18 @@ using std::string;
 
 int main() {
 
-//    Receiver receiver;
-//    receiver.init(880);
-//    cout << "Listening..." << endl;
-//    receiver.receive();
+    Receiver receiver;
+    receiver.init(880);
+    cout << "Listening..." << endl;
+    receiver.receive();
 
 
-    Transmitter transmitter;
-    transmitter.init(1000);
-
-    string data = "Melanie Burns";
-
-    transmitter.transmit(const_cast<char *>(data.c_str()), data.length());
+//    Transmitter transmitter;
+//    transmitter.init(0);
+//
+//    string data = "Tomothy Milner";
+//
+//    transmitter.transmit(const_cast<char *>(data.c_str()), data.length());
 
 
     return 0;

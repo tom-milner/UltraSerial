@@ -6,7 +6,7 @@
 #define ULTRASERIAL_CONFIG_H
 
 #include <fftw3.h>
-#include <stdlib.h>
+#include <cstdlib>
 
 
 namespace ProtocolConstants {
@@ -14,10 +14,8 @@ namespace ProtocolConstants {
     const int HEADER_SIZE = 16;
     const int FREQUENCY_INTERVAL = 50;
     const int SAMPLE_RATE = 44100;
-    const int SAMPLES_PER_BYTE = SAMPLE_RATE / 16; ///< The number of samples to send for each byte.
-    const int SAMPLES_PER_BRIDGE = SAMPLE_RATE /
-                                   64; ///< The number of samples to use for 'bridging' between one character and the next in transmission.
-    const int BUFFERS_PER_CELL = 16;
+    const int SAMPLES_PER_BYTE = 4096; ///< The number of samples to send for each byte.
+    const int BUFFERS_PER_BYTE = 4;
 };
 
 struct TransmitConfig {
@@ -31,6 +29,9 @@ struct ReceiveConfig {
     uint8_t inSignal;
     uint8_t bufferCounter;
     char * receivedChars;
+    int lastFreq;
+    fftw_plan plan;
+    fftw_complex * fftBuffer;
 };
 
 
