@@ -67,7 +67,6 @@ void Transmitter::transmit(char *data, int dataLength) {
     int bIndex = 0; ///< b(uffer)Index -  The index of the current sample in the buffer.
     config.currPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[0]); ///< The phase step we need for the target frequency for the byte.
     for (int i = 0; i < dataLength; i++) {
-
         /// Write the samples of this frequency to the first 90% of the buffer;
         int frequencyChangePoint = ProtocolConstants::SAMPLES_PER_BYTE * 0.85;
         int k = 0;
@@ -134,13 +133,15 @@ float Transmitter::getAmplitudeScaleFactor(int x, float totalSamples, float minA
 /// Generate a simple wavetable containing a sin wave.
 void Transmitter::generateWavetable(TransmitConfig *config) {
     for (int i = 0; i < ProtocolConstants::TABLE_SIZE; i++) {
-        config->sine[i] = (float) sin(((double) i / (double) ProtocolConstants::TABLE_SIZE) * M_PI * 2); // /ProtocolConstantsTABLE_SIZE to keep scale factor between 1 and 0
+        config->sine[i] = (float) sin(((double) i / (double) ProtocolConstants::TABLE_SIZE) * M_PI * 2); //  /ProtocolConstants::TABLE_SIZE to keep scale factor between 1 and -1
     }
 }
 
 /// Calculate how much we need to step through the wavetable to produce the target frequency.
 /// \return A 'scale factor' determining how many many samples must be stepped through at once to reach the desired frequency.
 float Transmitter::calculatePhaseStep(float targetFreq) {
+
+    cout << targetFreq <<endl;
     /// SAMPLE_RATE / ProtocolConstants::TABLE_SIZE = frequency of stepping through the wavetable point by point.
     return targetFreq / (ProtocolConstants::SAMPLE_RATE / ProtocolConstants::TABLE_SIZE); /// a scale factor.
 }

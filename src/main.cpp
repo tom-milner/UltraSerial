@@ -17,7 +17,7 @@ using std::string;
 int main() {
 
     Receiver receiver;
-    receiver.init(880);
+    receiver.init(0);
     cout << "Listening..." << endl;
     receiver.receive();
 
@@ -25,7 +25,7 @@ int main() {
 //    Transmitter transmitter;
 //    transmitter.init(0);
 //
-//    string data = "Tomothy Milner";
+//    string data = " ";
 //
 //    transmitter.transmit(const_cast<char *>(data.c_str()), data.length());
 

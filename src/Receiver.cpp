@@ -4,12 +4,12 @@
 
 #include "Receiver.h"
 
-#include <fftw3.h>
 #include <portaudio.h>
 #include <cstdlib>
 #include "Config.h"
 #include <string>
 #include "iostream"
+#include <cmath>
 
 
 using std::cout;
@@ -19,8 +19,6 @@ using std::string;
 
 /// Initialise the receiver.
 int Receiver::init(float ctrlFreq) {
-
-    config.inSignal = config.bufferCounter = 0;
 
     cout << "Initializing..." << endl;
     error = Pa_Initialize();
@@ -60,31 +58,16 @@ int Receiver::processBuffer(const void *inputBuffer, void *outputBuffer, unsigne
     ReceiveConfig *config = (ReceiveConfig *) data;
     const float *samples = (float *) inputBuffer;
 
-    /// If we haven't yet detected the start byte, or if it is time to read the next char, FFT the buffer.
-    if (!config->inSignal ) {
 
-        /// Read the samples into the FFT buffer.
-        for (int i = 0; i < samplesPerBuffer; i++) {
-            config->fftBuffer[i][0] = samples[i];
-            config->fftBuffer[i][1] = 0;
-        }
-        fftw_execute(config->plan);
-
-        // Look for frequency bin with highest amplitude.
-        int highest = 0;
-        for (int i = 0; i < samplesPerBuffer; i++) {
-            if (config->fftBuffer[i][0] > highest) {
-                highest = i;
-            }
-        }
-        config->lastFreq = highest;
-
-    } else {
-
+    for (int i = 0; i < samplesPerBuffer; i++) {
+        float index = (float) ((float) asin(samples[i]) * ProtocolConstants::TABLE_SIZE) / (M_PI * 2);
+        config->lastPhase = index;
     }
+
     return paContinue;
 
 }
+
 
 void Receiver::receive() {
 
@@ -102,23 +85,17 @@ void Receiver::receive() {
     );
     cout << error << endl;
 
-//    fftw_plan plan = fftw_plan_dft_1d(ProtocolConstants::SAMPLES_PER_BUFFER, config.recordedSamples);
-    config.lastFreq = 0;
-    config.fftBuffer = (fftw_complex *) fftw_malloc(samplesPerBuffer * sizeof(fftw_complex));
-    config.plan = fftw_plan_dft_1d(samplesPerBuffer, config.fftBuffer, config.fftBuffer, FFTW_FORWARD, FFTW_ESTIMATE);
     error = Pa_StartStream(stream);
     cout << error << endl;
 
-    int lastLastFreq = 0;
+    float lastPhase = 0;
+    float phaseStep = 0;
     while (Pa_IsStreamActive(stream)) {
-        if (config.lastFreq != lastLastFreq) {
-            cout << config.lastFreq <<endl;
-            lastLastFreq = config.lastFreq;
+        if (config.lastPhase - lastPhase != phaseStep) {
+            phaseStep = config.lastPhase - lastPhase; // THIS WON"T WORK - SAMPLES DEPEND ON AMPLITUDE -> EASILY INTERFERED!!
+            cout << phaseStep << endl;
         }
     }
-
-    fftw_destroy_plan(config.plan);
-    fftw_free(config.fftBuffer);
 
 
 }

@@ -5,7 +5,6 @@
 #ifndef ULTRASERIAL_CONFIG_H
 #define ULTRASERIAL_CONFIG_H
 
-#include <fftw3.h>
 #include <cstdlib>
 
 
@@ -26,12 +25,7 @@ struct TransmitConfig {
 };
 
 struct ReceiveConfig {
-    uint8_t inSignal;
-    uint8_t bufferCounter;
-    char * receivedChars;
-    int lastFreq;
-    fftw_plan plan;
-    fftw_complex * fftBuffer;
+    float lastPhase;
 };
 
 
