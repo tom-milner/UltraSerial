@@ -7,7 +7,7 @@ add_subdirectory(lib)
 LINK_DIRECTORIES(/usr/local/lib)
 include_directories(/usr/local/include)
 
-add_executable(UltraSerial src/main.cpp src/Transmitter.cpp src/Transmitter.h src/Config.h src/Receiver.cpp src/Receiver.h)
+add_executable(UltraSerial src/RingBuffer.h src/main.cpp src/Transmitter.cpp src/Transmitter.h src/Config.h src/Receiver.cpp src/Receiver.h )
 target_link_libraries(UltraSerial portaudio)
 target_link_libraries(UltraSerial fftw3)
 #

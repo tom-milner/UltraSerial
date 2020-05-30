@@ -22,8 +22,8 @@ using std::string;
  */
 int Transmitter::init(float ctrlFreq) {
 
-    float controlFrequency = ctrlFreq;
-    config.controlPhaseStep = calculatePhaseStep(controlFrequency);
+    config.baseFreq = ctrlFreq;
+
 
 
     generateWavetable(&config);
@@ -67,6 +67,7 @@ void Transmitter::transmit(char *data, int dataLength) {
     int bIndex = 0; ///< b(uffer)Index -  The index of the current sample in the buffer.
     config.currPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[0]); ///< The phase step we need for the target frequency for the byte.
     for (int i = 0; i < dataLength; i++) {
+        cout << "tf: " <<ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[i] << " - " << data[i] << endl;
         /// Write the samples of this frequency to the first 90% of the buffer;
         int frequencyChangePoint = ProtocolConstants::SAMPLES_PER_BYTE * 0.85;
         int k = 0;
@@ -75,15 +76,16 @@ void Transmitter::transmit(char *data, int dataLength) {
         }
 
         /// Now start changing to the frequency of the next sample.
-        float nextPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[i + 1]);
-        float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_BYTE - frequencyChangePoint);
-        for (; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
-            config.currPhaseStep += stepsPerSample;
-            buffer[bIndex++] =
-                    getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+        if(i != dataLength -1) {
+            float nextPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[i + 1]);
+            float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_BYTE - frequencyChangePoint);
+            for (; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
+                config.currPhaseStep += stepsPerSample;
+                buffer[bIndex++] =
+                        getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+            }
+            config.currPhaseStep = nextPhaseStep;
         }
-        config.currPhaseStep = nextPhaseStep;
-
     }
 
 /// The full buffer has been created!! Write it to an audio stream.
@@ -141,18 +143,17 @@ void Transmitter::generateWavetable(TransmitConfig *config) {
 /// \return A 'scale factor' determining how many many samples must be stepped through at once to reach the desired frequency.
 float Transmitter::calculatePhaseStep(float targetFreq) {
 
-    cout << targetFreq <<endl;
     /// SAMPLE_RATE / ProtocolConstants::TABLE_SIZE = frequency of stepping through the wavetable point by point.
-    return targetFreq / (ProtocolConstants::SAMPLE_RATE / ProtocolConstants::TABLE_SIZE); /// a scale factor.
+    return ((targetFreq + config.baseFreq) / (ProtocolConstants::SAMPLE_RATE / ProtocolConstants::TABLE_SIZE)) ; /// a scale factor.
 }
 
 /// Get the sample produced by the current config (phase step).
 float Transmitter::getNextSineSample(TransmitConfig *config) {
-    config->phase += config->controlPhaseStep + config->currPhaseStep;
+    config->phase +=  config->currPhaseStep;
     if (config->phase >= ProtocolConstants::TABLE_SIZE) config->phase -= ProtocolConstants::TABLE_SIZE; // % could be used here.
 
-    /// Interpolate to get the correct sample, as the new phase may not be a while number (therefore cannot be used as an index of the wavetable).
-    int currIndex = (unsigned int) config->phase;
+    /// Interpolate to get the correct sample, as the new phase may not be a whole number (therefore cannot be used as an index of the wavetable).
+    int currIndex = (unsigned int) config->phase % ProtocolConstants::TABLE_SIZE;
     int nextIndex = currIndex == ProtocolConstants::TABLE_SIZE - 1 ? (unsigned int) 0 : currIndex + 1;
     float frac = config->phase - currIndex;
     float sample = config->sine[currIndex] + frac * (config->sine[nextIndex] - config->sine[currIndex]);

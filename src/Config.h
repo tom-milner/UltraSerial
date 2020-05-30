@@ -6,26 +6,27 @@
 #define ULTRASERIAL_CONFIG_H
 
 #include <cstdlib>
+#include "RingBuffer.h"
 
 
 namespace ProtocolConstants {
     const int TABLE_SIZE = 200;
     const int HEADER_SIZE = 16;
-    const int FREQUENCY_INTERVAL = 50;
+    const int FREQUENCY_INTERVAL = 440 ;
     const int SAMPLE_RATE = 44100;
-    const int SAMPLES_PER_BYTE = 4096; ///< The number of samples to send for each byte.
+    const int SAMPLES_PER_BYTE = 4096*2; ///< The number of samples to send for each byte.
     const int BUFFERS_PER_BYTE = 4;
 };
 
 struct TransmitConfig {
     float sine[ProtocolConstants::TABLE_SIZE];
     float phase;
-    float controlPhaseStep;
+    float baseFreq;
     float currPhaseStep;
 };
 
 struct ReceiveConfig {
-    float lastPhase;
+    RingBuffer<float>  * rb;
 };
 
 
