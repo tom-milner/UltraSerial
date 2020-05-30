@@ -25,7 +25,6 @@ int Transmitter::init(float ctrlFreq) {
     config.baseFreq = ctrlFreq;
 
 
-
     generateWavetable(&config);
     config.phase = 0;
 
@@ -59,34 +58,66 @@ void Transmitter::transmit(char *data, int dataLength) {
     float *buffer = (float *) malloc(sizeof(float) * bufferLength); ///< One float per sample.
 
     cout << ProtocolConstants::SAMPLES_PER_BYTE << endl;
-    /**
-     * Here we turn the characters into samples.
-     * We use one frequency band per byte. Therefore, the protocol uses 255 different frequencies.
-     * The size of each frequency band is determined by FREQUENCY_INTERVAL.
-     */
-    int bIndex = 0; ///< b(uffer)Index -  The index of the current sample in the buffer.
-    config.currPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[0]); ///< The phase step we need for the target frequency for the byte.
-    for (int i = 0; i < dataLength; i++) {
-        cout << "tf: " <<ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[i] << " - " << data[i] << endl;
-        /// Write the samples of this frequency to the first 90% of the buffer;
-        int frequencyChangePoint = ProtocolConstants::SAMPLES_PER_BYTE * 0.85;
-        int k = 0;
-        for (; k < frequencyChangePoint; k++) {
-            buffer[bIndex++] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
-        }
 
-        /// Now start changing to the frequency of the next sample.
-        if(i != dataLength -1) {
-            float nextPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[i + 1]);
-            float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_BYTE - frequencyChangePoint);
-            for (; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
-                config.currPhaseStep += stepsPerSample;
-                buffer[bIndex++] =
-                        getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
-            }
-            config.currPhaseStep = nextPhaseStep;
-        }
+
+    // Using the new byte-at-a-time technique.
+    // The base frequency is the frequency of the least significant bit.
+    // The bit position n is given a frequency of (n * FREQUENCY_INTERVAL) + base frequency (little-endian).
+    int bIndex = 0; ///< Index of the current sample in the buffer.
+
+    // Calculate the phase step for each nit position.
+    float bitPhaseSteps[8] = {0};
+    for (int i = 0; i < 8; i++) {
+        bitPhaseSteps[i] = calculatePhaseStep(config.baseFreq + (i * ProtocolConstants::FREQUENCY_INTERVAL));
+        cout << config.baseFreq + (i * ProtocolConstants::FREQUENCY_INTERVAL) << endl;
     }
+
+    // Create the samples for each bit.
+    for (int i = 0; i < dataLength; i++) {
+        cout << data[i] << endl;
+        for (int j = 0; j < 8; j++) {
+
+            if (data[i] & (0x01 << j)) {
+                cout << "1";
+                config.currPhaseStep = bitPhaseSteps[j];
+                // Write the samples.
+                for (int k = 0; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
+                    buffer[bIndex + k] += 0.5 * getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+                }
+            }else {
+                cout << "0";
+            }
+        }
+        cout << endl;
+        bIndex+= ProtocolConstants::SAMPLES_PER_BYTE;
+        // Write the byte samples to the buffer.
+    }
+
+
+
+//    int bIndex = 0; ///< b(uffer)Index -  The index of the current sample in the buffer.
+//    config.currPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[0]); ///< The phase step we need for the target frequency for the byte.
+//    for (int i = 0; i < dataLength; i++) {
+//        cout << "tf: " <<ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[i] << " - " << data[i] << endl;
+//        /// Write the samples of this frequency to the first 90% of the buffer;
+//        int frequencyChangePoint = ProtocolConstants::SAMPLES_PER_BYTE * 0.85;
+//        int k = 0;
+//        for (; k < frequencyChangePoint; k++) {
+//            buffer[bIndex++] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+//        }
+//
+//        /// Now start changing to the frequency of the next sample.
+//        if(i != dataLength -1) {
+//            float nextPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[i + 1]);
+//            float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_BYTE - frequencyChangePoint);
+//            for (; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
+//                config.currPhaseStep += stepsPerSample;
+//                buffer[bIndex++] =
+//                        getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+//            }
+//            config.currPhaseStep = nextPhaseStep;
+//        }
+//    }
 
 /// The full buffer has been created!! Write it to an audio stream.
     error = Pa_OpenStream(
@@ -144,12 +175,12 @@ void Transmitter::generateWavetable(TransmitConfig *config) {
 float Transmitter::calculatePhaseStep(float targetFreq) {
 
     /// SAMPLE_RATE / ProtocolConstants::TABLE_SIZE = frequency of stepping through the wavetable point by point.
-    return ((targetFreq + config.baseFreq) / (ProtocolConstants::SAMPLE_RATE / ProtocolConstants::TABLE_SIZE)) ; /// a scale factor.
+    return ((targetFreq + config.baseFreq) / (ProtocolConstants::SAMPLE_RATE / ProtocolConstants::TABLE_SIZE)); /// a scale factor.
 }
 
 /// Get the sample produced by the current config (phase step).
 float Transmitter::getNextSineSample(TransmitConfig *config) {
-    config->phase +=  config->currPhaseStep;
+    config->phase += config->currPhaseStep;
     if (config->phase >= ProtocolConstants::TABLE_SIZE) config->phase -= ProtocolConstants::TABLE_SIZE; // % could be used here.
 
     /// Interpolate to get the correct sample, as the new phase may not be a whole number (therefore cannot be used as an index of the wavetable).

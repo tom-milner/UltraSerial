@@ -12,7 +12,7 @@
 namespace ProtocolConstants {
     const int TABLE_SIZE = 200;
     const int HEADER_SIZE = 16;
-    const int FREQUENCY_INTERVAL = 440 ;
+    const int FREQUENCY_INTERVAL = 500 ;
     const int SAMPLE_RATE = 44100;
     const int SAMPLES_PER_BYTE = 4096*2; ///< The number of samples to send for each byte.
     const int BUFFERS_PER_BYTE = 4;
