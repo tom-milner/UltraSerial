@@ -101,7 +101,7 @@ void Receiver::receive() {
 
     double *fftBuffer = (double *) malloc(samplesPerBuffer * sizeof(double));
     fftw_plan plan = nullptr;
-    fftw_complex *out = (fftw_complex *) fftw_malloc((samplesPerBuffer / 2) + 1 * sizeof(fftw_complex));
+    fftw_complex *out = (fftw_complex *) fftw_malloc(samplesPerBuffer * sizeof(fftw_complex));
 
     ofstream outFile;
     outFile.open("data.dat", std::ios::trunc);
@@ -121,18 +121,18 @@ void Receiver::receive() {
 
         /// Compute average frequency amplitude.
         float average = 0;
-        for (int i = 0; i < ProtocolConstants::FFT_SIZE; i++) {
-            outFile << out[i][0] << "   " << out[i][1] << endl;
+        for (int i = 0; i < samplesPerBuffer; i++) {
+
             average += out[i][0];
         }
-        average = average / ProtocolConstants::FFT_SIZE;
+        average = average / samplesPerBuffer;
 
         /// Calculate the standard deviation.
         float sum = 0;
-        for (int i = 0; i < ProtocolConstants::FFT_SIZE; i++) {
+        for (int i = 0; i < samplesPerBuffer; i++) {
             sum += pow(out[i][0] - average, 2);
         }
-        const float stdDev = sqrt(sum / (ProtocolConstants::FFT_SIZE - 1));
+        const float stdDev = sqrt(sum / (samplesPerBuffer - 1));
 
 
         /**
@@ -145,7 +145,7 @@ void Receiver::receive() {
         int maxFreqIdx = -1;
         float maxFreqEnergy = 0;
         const float energyThreshold = average + 3 * stdDev;
-        for (int i = 0; i < ProtocolConstants::FFT_SIZE / 2; i++) {
+        for (int i = 0; i < samplesPerBuffer / 2; i++) {
 
             if (out[i][0] < energyThreshold) { ///< Check if the energy meets the threshold.
                 continue; /// Ignore this frequency.
@@ -161,9 +161,9 @@ void Receiver::receive() {
 
 
 //        /// Now we convert the found frequency bin into its actual frequency value in Hz.
-//        const float foundFrequency = (ProtocolConstants::SAMPLE_RATE / samplesPerBuffer) * maxFreqIdx;
+        const float foundFrequency = (ProtocolConstants::SAMPLE_RATE / samplesPerBuffer) * maxFreqIdx;
 //        if (foundFrequency >= config.baseFreq - 100) {
-//            outFile << foundFrequency << endl;
+            outFile << foundFrequency << " " << maxFreqEnergy << endl;
 //        }
 
     }
