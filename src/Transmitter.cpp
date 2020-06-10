@@ -66,58 +66,58 @@ void Transmitter::transmit(char *data, int dataLength) {
     int bIndex = 0; ///< Index of the current sample in the buffer.
 
     // Calculate the phase step for each nit position.
-    float bitPhaseSteps[8] = {0};
-    for (int i = 0; i < 8; i++) {
-        bitPhaseSteps[i] = calculatePhaseStep(config.baseFreq + (i * ProtocolConstants::FREQUENCY_INTERVAL));
-        cout << config.baseFreq + (i * ProtocolConstants::FREQUENCY_INTERVAL) << endl;
-    }
+//    float bitPhaseSteps[8] = {0};
+//    for (int i = 0; i < 8; i++) {
+//        bitPhaseSteps[i] = calculatePhaseStep(config.baseFreq + (i * ProtocolConstants::FREQUENCY_INTERVAL));
+//        cout << config.baseFreq + (i * ProtocolConstants::FREQUENCY_INTERVAL) << endl;
+//    }
 
     // Create the samples for each bit.
-    for (int i = 0; i < dataLength; i++) {
-        cout << data[i] << endl;
-        for (int j = 0; j < 8; j++) {
-
-            if (data[i] & (0x01 << j)) {
-                cout << "1";
-                config.currPhaseStep = bitPhaseSteps[j];
-                // Write the samples.
-                for (int k = 0; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
-                    buffer[bIndex + k] += 0.5 * getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
-                }
-            }else {
-                cout << "0";
-            }
-        }
-        cout << endl;
-        bIndex+= ProtocolConstants::SAMPLES_PER_BYTE;
-        // Write the byte samples to the buffer.
-    }
+//    for (int i = 0; i < dataLength; i++) {
+//        cout << data[i] << endl;
+//        for (int j = 0; j < 8; j++) {
+//
+//            if (data[i] & (0x01 << j)) {
+//                cout << "1";
+//                config.currPhaseStep = bitPhaseSteps[j];
+//                // Write the samples.
+//                for (int k = 0; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
+//                    buffer[bIndex + k] += 0.5 * getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+//                }
+//            } else {
+//                cout << "0";
+//            }
+//        }
+//        cout << endl;
+//        bIndex += ProtocolConstants::SAMPLES_PER_BYTE;
+//        // Write the byte samples to the buffer.
+//    }
 
 
 
 //    int bIndex = 0; ///< b(uffer)Index -  The index of the current sample in the buffer.
-//    config.currPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[0]); ///< The phase step we need for the target frequency for the byte.
-//    for (int i = 0; i < dataLength; i++) {
-//        cout << "tf: " <<ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[i] << " - " << data[i] << endl;
-//        /// Write the samples of this frequency to the first 90% of the buffer;
-//        int frequencyChangePoint = ProtocolConstants::SAMPLES_PER_BYTE * 0.85;
-//        int k = 0;
-//        for (; k < frequencyChangePoint; k++) {
-//            buffer[bIndex++] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
-//        }
-//
-//        /// Now start changing to the frequency of the next sample.
-//        if(i != dataLength -1) {
-//            float nextPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL * (uint8_t) data[i + 1]);
-//            float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_BYTE - frequencyChangePoint);
-//            for (; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
-//                config.currPhaseStep += stepsPerSample;
-//                buffer[bIndex++] =
-//                        getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
-//            }
-//            config.currPhaseStep = nextPhaseStep;
-//        }
-//    }
+    config.currPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL ); ///< The phase step we need for the target frequency for the byte.
+    for (int i = 0; i < dataLength; i++) {
+        cout << "tf: " <<ProtocolConstants::FREQUENCY_INTERVAL  << " - " << data[i] << endl;
+        /// Write the samples of this frequency to the first 90% of the buffer;
+        int frequencyChangePoint = ProtocolConstants::SAMPLES_PER_BYTE * 0.85;
+        int k = 0;
+        for (; k < frequencyChangePoint; k++) {
+            buffer[bIndex++] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+        }
+
+        /// Now start changing to the frequency of the next sample.
+        if(i != dataLength -1) {
+            float nextPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL );
+            float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_BYTE - frequencyChangePoint);
+            for (; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
+                config.currPhaseStep += stepsPerSample;
+                buffer[bIndex++] =
+                        getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+            }
+            config.currPhaseStep = nextPhaseStep;
+        }
+    }
 
 /// The full buffer has been created!! Write it to an audio stream.
     error = Pa_OpenStream(
@@ -157,10 +157,10 @@ void Transmitter::transmit(char *data, int dataLength) {
 float Transmitter::getAmplitudeScaleFactor(int x, float totalSamples, float minAmplitude) {
 //    float f = pow((x - totalSamples / 2) / (totalSamples / 2), 2); ///< This is a quadratic anchored at (0,1) and (totalSamples,1). EDIT: Not anymore!! checkout link ^^^
 //    return f * (1-minAmplitude) + minAmplitude; ///< Adjust the graph to have  higher turning point (the value of minAmplitude).
-    float d = 2.2;
-    float s = 25;
-    float a = pow(((d * x) / totalSamples) - (d / 2), 2 * s);
-    return ((1 - minAmplitude) / (1 + a)) + minAmplitude;
+    float d = 1.15; ///< Length of "table" relative to totalSamples.
+    float a = 22; ///< "Squareness" of corners.
+    float k = pow(((5 / (2 * d)) * ((x / totalSamples) - 0.5)), 2 * a);
+    return ((1 - minAmplitude) / (1 + k)) + minAmplitude;
 }
 
 /// Generate a simple wavetable containing a sin wave.

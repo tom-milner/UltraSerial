@@ -35,7 +35,7 @@ int Receiver::init(float ctrlFreq) {
         cout << "No input device found" << endl;
         return 1;
     }
-
+    config.baseFreq = ctrlFreq;
 
     cout << inputParameters.device << endl;
 
@@ -44,6 +44,7 @@ int Receiver::init(float ctrlFreq) {
     cout << "Max input channels: " << info->maxInputChannels << endl;
     cout << "Max output channels: " << info->maxOutputChannels << endl;
     cout << "Device name: " << info->name << endl;
+    cout << "Control Frequency: " << config.baseFreq << endl;
 
 
     inputParameters.channelCount = 1;
@@ -75,9 +76,11 @@ int Receiver::processBuffer(const void *inputBuffer, void *outputBuffer, unsigne
 
 void Receiver::receive() {
 
+
     const int samplesPerBuffer = ProtocolConstants::SAMPLES_PER_BYTE / ProtocolConstants::BUFFERS_PER_BYTE;
-    cout <<"Samples per buffer: " <<  samplesPerBuffer <<  endl;
-    cout << "Frequency Resolution: " << ProtocolConstants::SAMPLE_RATE / samplesPerBuffer;
+    cout << "Samples per buffer: " << samplesPerBuffer << endl;
+    cout << "FFT Size: " << ProtocolConstants::FFT_SIZE << endl;
+    cout << "Frequency Resolution: " << ProtocolConstants::SAMPLE_RATE / ProtocolConstants::FFT_SIZE << endl;
     error = Pa_OpenStream(
             &stream,
             &inputParameters,
@@ -96,47 +99,77 @@ void Receiver::receive() {
     cout << error << endl;
 
 
-    fftw_complex *fftBuffer = (fftw_complex *) fftw_malloc(samplesPerBuffer * sizeof(fftw_complex));
+    double *fftBuffer = (double *) malloc(samplesPerBuffer * sizeof(double));
     fftw_plan plan = nullptr;
-    fftw_complex *out = (fftw_complex *) fftw_malloc(samplesPerBuffer * sizeof(fftw_complex));
+    fftw_complex *out = (fftw_complex *) fftw_malloc((samplesPerBuffer / 2) + 1 * sizeof(fftw_complex));
 
-    int lastHighest = 0;
     ofstream outFile;
     outFile.open("data.dat", std::ios::trunc);
-    long lastNow = 0;
-    while (Pa_IsStreamActive(stream)) {
-        plan = fftw_plan_dft_1d(samplesPerBuffer, fftBuffer, fftBuffer, FFTW_FORWARD, FFTW_ESTIMATE);
 
-        // Process samples in ring buffer one audio buffer at a time.
+    plan = fftw_plan_dft_r2c_1d(samplesPerBuffer, fftBuffer, out, FFTW_ESTIMATE);
+
+    float currentSample = 0;
+    while (Pa_IsStreamActive(stream)) {
+
+        /// Add samples to fftBuffer.
         for (int i = 0; i < samplesPerBuffer; i++) {
-            fftBuffer[i][0] = config.rb->read();
-            fftBuffer[i][1] = 0;
+            while (config.rb->read(&currentSample) != 0) {} ///< Wait until there are samples available.
+            fftBuffer[i] = currentSample;
         }
 
         fftw_execute(plan);
 
-        // Look for frequency bin with highest amplitude.
-        int highest = 0;
-        for (int i = 0; i < samplesPerBuffer; i++) {
-            // Write frequencies to file.
-//            outFile << i << " " << fftBuffer[i][0] << endl;
-            if (fftBuffer[i][0] > highest) {
-                highest = i;
+        /// Compute average frequency amplitude.
+        float average = 0;
+        for (int i = 0; i < ProtocolConstants::FFT_SIZE; i++) {
+            outFile << out[i][0] << "   " << out[i][1] << endl;
+            average += out[i][0];
+        }
+        average = average / ProtocolConstants::FFT_SIZE;
+
+        /// Calculate the standard deviation.
+        float sum = 0;
+        for (int i = 0; i < ProtocolConstants::FFT_SIZE; i++) {
+            sum += pow(out[i][0] - average, 2);
+        }
+        const float stdDev = sqrt(sum / (ProtocolConstants::FFT_SIZE - 1));
+
+
+        /**
+         * Now we process the results of the FFT.
+         * We only need to look through half of the frequencies, as the results will be symmetric around the halfway point.
+         * To differentiate between active frequencies and noise, we only look at frequencies that have an energy higher than 3 standard deviations above the mean.
+        * This elements 99.7% of the frequencies.
+        */
+
+        int maxFreqIdx = -1;
+        float maxFreqEnergy = 0;
+        const float energyThreshold = average + 3 * stdDev;
+        for (int i = 0; i < ProtocolConstants::FFT_SIZE / 2; i++) {
+
+            if (out[i][0] < energyThreshold) { ///< Check if the energy meets the threshold.
+                continue; /// Ignore this frequency.
             }
+
+            // Save the frequency with the highest energy.
+            if (out[i][0] >= maxFreqEnergy) {
+                maxFreqIdx = i;
+                maxFreqEnergy = out[i][0];
+            }
+
         }
-        if (lastHighest != highest && highest != 0 && highest < ProtocolConstants::SAMPLE_RATE / 2) {
-//            cout << highest << " " << fftBuffer[highest][0] << endl;
-//            long now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-//            if (now != lastNow) {
-//                outFile  << endl;
-//                lastNow = now;
-//            }
-            outFile << highest<< "  " << fftBuffer[highest][0]  << endl;
-            lastHighest = highest;
-        }
+
+
+//        /// Now we convert the found frequency bin into its actual frequency value in Hz.
+//        const float foundFrequency = (ProtocolConstants::SAMPLE_RATE / samplesPerBuffer) * maxFreqIdx;
+//        if (foundFrequency >= config.baseFreq - 100) {
+//            outFile << foundFrequency << endl;
+//        }
+
     }
     outFile.close();
     fftw_destroy_plan(plan);
-    fftw_free(fftBuffer);
+    free(fftBuffer);
+    fftw_free(out);
 
 }

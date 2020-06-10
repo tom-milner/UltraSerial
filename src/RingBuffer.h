@@ -5,6 +5,7 @@
 #ifndef ULTRASERIAL_RINGBUFFER_H
 #define ULTRASERIAL_RINGBUFFER_H
 
+#include <iostream>
 
 template<typename T>
 class RingBuffer {
@@ -13,7 +14,7 @@ public:
 
     ~RingBuffer();
 
-    T read();
+    int read(T *data);
 
     int put(T data);
 
@@ -35,7 +36,7 @@ private:
 template<typename T>
 RingBuffer<T>::RingBuffer(int size) {
     bufferSize = size;
-    itemCount =  readIndex = writeIndex = 0;
+    itemCount = readIndex = writeIndex = 0;
     bufferPointer = (T *) malloc(sizeof(T) * size);
 }
 
@@ -45,12 +46,12 @@ RingBuffer<T>::~RingBuffer() {
 }
 
 template<typename T>
-T RingBuffer<T>::read() {
-    if (itemCount == 0) return 0;
-    T data = bufferPointer[readIndex];
+int RingBuffer<T>::read(T *data) {
+    if (itemCount == 0) return 1;
+    *data = bufferPointer[readIndex];
     readIndex = (readIndex + 1) % bufferSize;
     itemCount--;
-    return data;
+    return 0;
 }
 
 template<typename T>
