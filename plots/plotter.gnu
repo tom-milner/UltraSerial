@@ -1,7 +1,7 @@
 set term qt noraise;
 set xlabel 'Frequency';
 set ylabel 'Amplitude (Real)';
-set xrange [0:70];
+#set xrange [0:70];
 #set yrange [0:3500];
 plot "< tail -n1000 ../cmake-build-debug/data.dat";
 #pause 1;

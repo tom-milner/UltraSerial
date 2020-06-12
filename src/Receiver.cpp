@@ -79,8 +79,8 @@ void Receiver::receive() {
 
     const int samplesPerBuffer = ProtocolConstants::SAMPLES_PER_BYTE / ProtocolConstants::BUFFERS_PER_BYTE;
     cout << "Samples per buffer: " << samplesPerBuffer << endl;
-    cout << "FFT Size: " << ProtocolConstants::FFT_SIZE << endl;
-    cout << "Frequency Resolution: " << ProtocolConstants::SAMPLE_RATE / ProtocolConstants::FFT_SIZE << endl;
+
+
     error = Pa_OpenStream(
             &stream,
             &inputParameters,

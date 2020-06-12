@@ -46,6 +46,65 @@ int Transmitter::init(float ctrlFreq) {
 }
 
 /**
+ * Turn a character buffer into audio samples using the method specified.
+ * @param data - The character buffer to transform.
+ * @param samples - The buffer to write the generated samples to.
+ * @param dataLength - Length of the character buffer.
+ * @param method - The modulation method to use (defaults to 0).
+ */
+void Transmitter::binToSamples(char *data, float *samples, int dataLength, uint8_t method) {
+
+    /// Nibble modulator. 4 bytes encoded in each frequency.
+    if (method == 0) {
+
+        uint8_t currNibble;
+        uint8_t nextNibble;
+        int frequencyChangePoint = 0.85 * ProtocolConstants::SAMPLES_PER_BYTE;
+        int sIndex = 0;
+        nextNibble = data[0] >> 4; ///< The first nibble in the sequence.
+        for (int i = 0; i < dataLength; i++) {
+            cout << endl << data[i] << "    " << byteToBinary(data[i]) << endl;
+            for (int j = 0; j < 2; j++) { ///< Half a byte at a time.
+
+                /// Move to the next nibble.
+                currNibble = nextNibble;
+                if (!(j == 1 && i == dataLength - 1)) {
+                    nextNibble = (j == 1 ? data[i + 1] >> 4 : data[i] & 0xF);
+                }
+
+                cout << (int) currNibble << "    " << byteToBinary(currNibble) << "    " << config.baseFreq + (currNibble * ProtocolConstants::FREQUENCY_INTERVAL) << endl;
+
+                /// Create samples from nibble.
+                config.currPhaseStep = calculatePhaseStep(config.baseFreq + (currNibble * ProtocolConstants::FREQUENCY_INTERVAL));
+                float nextPhaseStep = calculatePhaseStep(config.baseFreq + (nextNibble * ProtocolConstants::FREQUENCY_INTERVAL));
+//                config.currPhaseStep = calculatePhaseStep(config.baseFreq + (data[i] * ProtocolConstants::FREQUENCY_INTERVAL));
+//                float nextPhaseStep = calculatePhaseStep(config.baseFreq + (data[i + 1] * ProtocolConstants::FREQUENCY_INTERVAL));
+
+                float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_BYTE - frequencyChangePoint);
+
+                int k = 0;
+                for (k; k <= frequencyChangePoint; k++) {
+
+                    samples[sIndex] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+                }
+
+                for (k; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
+                    config.currPhaseStep += stepsPerSample;
+                    samples[sIndex] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+                }
+
+
+            }
+        }
+
+
+    } else {
+        cout << "Modulation method not supported." << endl;
+    }
+}
+
+
+/**
  * Transmit the supplied characters.
  * \param data - the characters to transmit.
  * \param dataLength - the amount of characters to transmit.
@@ -53,17 +112,20 @@ int Transmitter::init(float ctrlFreq) {
 void Transmitter::transmit(char *data, int dataLength) {
 
 
-    /// Initialise the audio buffer with the length of the data, plus the number of bridge samples, plus the ramp samples.
+    /// Initialise the audio buffer with the length of the data, plus the number of bridge samples.
     const unsigned long bufferLength = dataLength * (ProtocolConstants::SAMPLES_PER_BYTE);
     float *buffer = (float *) malloc(sizeof(float) * bufferLength); ///< One float per sample.
 
     cout << ProtocolConstants::SAMPLES_PER_BYTE << endl;
 
 
+
+
+
     // Using the new byte-at-a-time technique.
     // The base frequency is the frequency of the least significant bit.
     // The bit position n is given a frequency of (n * FREQUENCY_INTERVAL) + base frequency (little-endian).
-    int bIndex = 0; ///< Index of the current sample in the buffer.
+    // int bIndex = 0; ///< Index of the current sample in the buffer.
 
     // Calculate the phase step for each nit position.
 //    float bitPhaseSteps[8] = {0};
@@ -93,31 +155,8 @@ void Transmitter::transmit(char *data, int dataLength) {
 //        // Write the byte samples to the buffer.
 //    }
 
+    binToSamples(data, buffer, dataLength, 0);
 
-
-//    int bIndex = 0; ///< b(uffer)Index -  The index of the current sample in the buffer.
-    config.currPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL ); ///< The phase step we need for the target frequency for the byte.
-    for (int i = 0; i < dataLength; i++) {
-        cout << "tf: " <<ProtocolConstants::FREQUENCY_INTERVAL  << " - " << data[i] << endl;
-        /// Write the samples of this frequency to the first 90% of the buffer;
-        int frequencyChangePoint = ProtocolConstants::SAMPLES_PER_BYTE * 0.85;
-        int k = 0;
-        for (; k < frequencyChangePoint; k++) {
-            buffer[bIndex++] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
-        }
-
-        /// Now start changing to the frequency of the next sample.
-        if(i != dataLength -1) {
-            float nextPhaseStep = calculatePhaseStep(ProtocolConstants::FREQUENCY_INTERVAL );
-            float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_BYTE - frequencyChangePoint);
-            for (; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
-                config.currPhaseStep += stepsPerSample;
-                buffer[bIndex++] =
-                        getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
-            }
-            config.currPhaseStep = nextPhaseStep;
-        }
-    }
 
 /// The full buffer has been created!! Write it to an audio stream.
     error = Pa_OpenStream(
@@ -191,4 +230,10 @@ float Transmitter::getNextSineSample(TransmitConfig *config) {
     return sample;
 }
 
-
+string Transmitter::byteToBinary(char byte) {
+    string out;
+    for (int i = 0; i < 8; i++) {
+        out += (byte & (0x80 >> i)) ? "1" : "0";
+    }
+    return out;
+}
