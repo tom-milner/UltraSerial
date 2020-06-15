@@ -13,6 +13,7 @@
 #include <fftw3.h>
 #include <chrono>
 #include <fstream>
+#include <vector>
 
 using std::cout;
 using std::cerr;
@@ -67,6 +68,9 @@ int Receiver::processBuffer(const void *inputBuffer, void *outputBuffer, unsigne
 
     /// Read samples into ring buffer.
     for (int i = 0; i < samplesPerBuffer; i++) {
+        if (config->inDataStream) {
+            config->sampleCount++;
+        }
         config->rb->put(samples[i]);
     }
     return paContinue;
@@ -77,7 +81,7 @@ int Receiver::processBuffer(const void *inputBuffer, void *outputBuffer, unsigne
 void Receiver::receive() {
 
 
-    const int samplesPerBuffer = ProtocolConstants::SAMPLES_PER_BYTE / ProtocolConstants::BUFFERS_PER_BYTE;
+    const int samplesPerBuffer = ProtocolConstants::SAMPLES_PER_DATA / ProtocolConstants::BUFFERS_PER_BYTE;
     cout << "Samples per buffer: " << samplesPerBuffer << endl;
 
 
@@ -162,9 +166,28 @@ void Receiver::receive() {
 
 //        /// Now we convert the found frequency bin into its actual frequency value in Hz.
         const float foundFrequency = (ProtocolConstants::SAMPLE_RATE / samplesPerBuffer) * maxFreqIdx;
-//        if (foundFrequency >= config.baseFreq - 100) {
-            outFile << foundFrequency << " " << maxFreqEnergy << endl;
-//        }
+        if (!config.inDataStream) {
+            /// Look for start frequency.
+            if (compareFrequencies(foundFrequency, ProtocolConstants::START_FREQUENCY)) {
+                config.inDataStream = 1;
+            }
+        } else {
+            if (config.sampleCount >= ProtocolConstants::SAMPLES_PER_DATA) {
+//                cout << std::chrono::system_clock::now().time_since_epoch().count() << endl;
+//                cout << config.sampleCount << endl;
+                config.sampleCount = 0;
+                if (!compareFrequencies(foundFrequency, ProtocolConstants::START_FREQUENCY)) {
+                    /// Get data from the current frequency!
+                    if (compareFrequencies(foundFrequency, ProtocolConstants::STOP_FREQUENCY)) {
+                        config.inDataStream = 0;
+                        cout << endl;
+                    } else {
+                        cout << "Reading    " << foundFrequency << endl;
+//                        uint8_t data = ((foundFrequency - config.baseFreq) / ProtocolConstants::FREQUENCY_INTERVAL);
+                    }
+                }
+            }
+        }
 
     }
     outFile.close();
@@ -172,4 +195,14 @@ void Receiver::receive() {
     free(fftBuffer);
     fftw_free(out);
 
+}
+
+char Receiver::compareFrequencies(float recFreq, float targetFreq) {
+    const float allowedRange = ProtocolConstants::FREQUENCY_INTERVAL * 0.5;
+    const float upperBound = targetFreq + allowedRange;
+    const float lowerBound = targetFreq - allowedRange;
+    if (recFreq < upperBound && recFreq > lowerBound) {
+        return 1;
+    }
+    return 0;
 }

@@ -31,6 +31,8 @@ private:
 
     void generateWavetable(TransmitConfig *config);
 
+    void addStartFrequency(float * buffer, int idx);
+
     PaStream *stream;
     PaStreamParameters outputParameters;
     PaError error;

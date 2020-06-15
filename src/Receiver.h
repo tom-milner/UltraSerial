@@ -12,9 +12,9 @@
 class Receiver {
 
 public:
- int init(float ctrlFreq);
+    int init(float ctrlFreq);
 
- void receive();
+    void receive();
 
 
 private:
@@ -22,9 +22,10 @@ private:
     PaError error;
     PaStream *stream;
     PaStreamParameters inputParameters;
-    static int startBitReceived;
     static int processBuffer(const void *inputBuffer, void *outputBuffer, unsigned long samplesPerBuffer,
-                      const PaStreamCallbackTimeInfo *timeInfo, PaStreamCallbackFlags statusFlags, void *data);
+                             const PaStreamCallbackTimeInfo *timeInfo, PaStreamCallbackFlags statusFlags, void *data);
+
+    char compareFrequencies(float f1, float f2);
 };
 
 

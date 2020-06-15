@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string>
 #include <cmath>
+#include <chrono>
 
 using std::cout;
 using std::cerr;
@@ -42,6 +43,7 @@ int Transmitter::init(float ctrlFreq) {
     outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
     outputParameters.hostApiSpecificStreamInfo = nullptr;
 
+
     return 0;
 }
 
@@ -54,15 +56,23 @@ int Transmitter::init(float ctrlFreq) {
  */
 void Transmitter::binToSamples(char *data, float *samples, int dataLength, uint8_t method) {
 
+    int sIndex = 0;
+    int frequencyChangePoint = 0.85 * ProtocolConstants::SAMPLES_PER_DATA;
+
+    // Add the start frequency.
+    config.currPhaseStep = calculatePhaseStep(ProtocolConstants::START_FREQUENCY);
+
+    for (int k = 0; k < ProtocolConstants::SAMPLES_PER_DATA * 2; k++) {
+        samples[sIndex++] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_DATA * 2, 0.2);
+    }
+
     /// Nibble modulator. 4 bytes encoded in each frequency.
     if (method == 0) {
 
         uint8_t currNibble, nextNibble;
-        int frequencyChangePoint = 0.85 * ProtocolConstants::SAMPLES_PER_BYTE;
-        int sIndex = 0;
         nextNibble = currNibble = data[0] >> 4; ///< The first nibble in the sequence.
 
-        config.currPhaseStep = calculatePhaseStep(currNibble * ProtocolConstants::FREQUENCY_INTERVAL);
+        config.currPhaseStep = calculatePhaseStep(config.baseFreq + (currNibble * ProtocolConstants::FREQUENCY_INTERVAL));
         for (int i = 0; i < dataLength; i++) {
             cout << endl << data[i] << "    " << byteToBinary(data[i]) << endl;
             for (int j = 0; j < 2; j++) { ///< Half a byte at a time.
@@ -76,20 +86,27 @@ void Transmitter::binToSamples(char *data, float *samples, int dataLength, uint8
                 cout << (int) currNibble << "    " << byteToBinary(currNibble) << "    " << config.baseFreq + (currNibble * ProtocolConstants::FREQUENCY_INTERVAL) << endl;
 
                 /// Step to the next frequency.
-                float nextPhaseStep = calculatePhaseStep((nextNibble * ProtocolConstants::FREQUENCY_INTERVAL));
-                float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_BYTE - frequencyChangePoint);
+                float nextPhaseStep = calculatePhaseStep((nextNibble * ProtocolConstants::FREQUENCY_INTERVAL) + config.baseFreq);
+                float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_DATA - frequencyChangePoint);
 
-                for (int k = 0; k < ProtocolConstants::SAMPLES_PER_BYTE; k++) {
+                for (int k = 0; k < ProtocolConstants::SAMPLES_PER_DATA; k++) {
                     if (k > frequencyChangePoint) {
                         config.currPhaseStep += stepsPerSample;
                     }
-                    samples[sIndex++] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_BYTE, 0.2);
+                    samples[sIndex++] = getNextSineSample(&config) * getAmplitudeScaleFactor(k, ProtocolConstants::SAMPLES_PER_DATA, 0.2);
                 }
 
 
             }
         }
 
+
+        float nextPhaseStep = calculatePhaseStep(ProtocolConstants::STOP_FREQUENCY);
+        float stepsPerSample = (nextPhaseStep - config.currPhaseStep) / (ProtocolConstants::SAMPLES_PER_DATA - frequencyChangePoint);
+        for (int i = 0; i < ProtocolConstants::SAMPLES_PER_DATA * 2; i++) {
+            if (i < ProtocolConstants::SAMPLES_PER_DATA - frequencyChangePoint) { config.currPhaseStep += stepsPerSample; }
+            samples[sIndex++] = getNextSineSample(&config) * getAmplitudeScaleFactor(i, ProtocolConstants::SAMPLES_PER_DATA * 2, 0.2);
+        }
 
     } else {
         cout << "Modulation method not supported." << endl;
@@ -106,13 +123,10 @@ void Transmitter::transmit(char *data, int dataLength) {
 
 
     /// Initialise the audio buffer with the length of the data, plus the number of bridge samples.
-    const unsigned long bufferLength = dataLength * (ProtocolConstants::SAMPLES_PER_BYTE) * 2;
+    const unsigned long bufferLength = ((dataLength + 4) * (ProtocolConstants::SAMPLES_PER_DATA) * 2);
     float *buffer = (float *) malloc(sizeof(float) * bufferLength); ///< One float per sample.
 
-    cout << ProtocolConstants::SAMPLES_PER_BYTE << endl;
-
-
-
+    cout << ProtocolConstants::SAMPLES_PER_DATA << endl;
 
 
     // Using the new byte-at-a-time technique.
@@ -167,6 +181,8 @@ void Transmitter::transmit(char *data, int dataLength) {
     error = Pa_StartStream(stream);
 
     cout << "Transmitting... " << endl;
+
+    cout << std::chrono::system_clock::now().time_since_epoch().count() << endl;
     Pa_WriteStream(stream, buffer, bufferLength); ///< This is a blocking operation.
 
     error = Pa_StopStream(stream);
@@ -207,7 +223,7 @@ void Transmitter::generateWavetable(TransmitConfig *config) {
 float Transmitter::calculatePhaseStep(float targetFreq) {
 
     /// SAMPLE_RATE / ProtocolConstants::TABLE_SIZE = frequency of stepping through the wavetable point by point.
-    return ((targetFreq + config.baseFreq) / (ProtocolConstants::SAMPLE_RATE / ProtocolConstants::TABLE_SIZE)); /// a scale factor.
+    return ((targetFreq) / (ProtocolConstants::SAMPLE_RATE / ProtocolConstants::TABLE_SIZE)); /// a scale factor.
 }
 
 /// Get the sample produced by the current config (phase step).
@@ -230,3 +246,4 @@ string Transmitter::byteToBinary(char byte) {
     }
     return out;
 }
+
