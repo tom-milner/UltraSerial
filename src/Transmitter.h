@@ -19,9 +19,9 @@ public:
     int init(float ctrlFreq);
 
 private:
-    float getNextSineSample(TransmitConfig *config);
+    float getNextSineSample();
 
-    void binToSamples(char *data, float *samples, int dataLength, uint8_t method = 0);
+    void dataToSamples(char *data, float *samples, int dataLength);
 
     float calculatePhaseStep(float targetFreq);
 
@@ -29,14 +29,13 @@ private:
 
     std::string byteToBinary(char byte);
 
-    void generateWavetable(TransmitConfig *config);
+    void generateWavetable();
 
-    void addStartFrequency(float * buffer, int idx);
 
     PaStream *stream;
     PaStreamParameters outputParameters;
     PaError error;
-    TransmitConfig config;
+    TransmitConfig transmitConfig;
 };
 
 #endif //ULTRASERIAL_TRANSMITTER_H

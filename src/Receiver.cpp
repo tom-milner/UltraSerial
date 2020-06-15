@@ -170,6 +170,7 @@ void Receiver::receive() {
             /// Look for start frequency.
             if (compareFrequencies(foundFrequency, ProtocolConstants::START_FREQUENCY)) {
                 config.inDataStream = 1;
+                cout << "Start!" << endl;
             }
         } else {
             if (config.sampleCount >= ProtocolConstants::SAMPLES_PER_DATA) {
@@ -180,7 +181,7 @@ void Receiver::receive() {
                     /// Get data from the current frequency!
                     if (compareFrequencies(foundFrequency, ProtocolConstants::STOP_FREQUENCY)) {
                         config.inDataStream = 0;
-                        cout << endl;
+                        cout << "Stop!" << endl;
                     } else {
                         cout << "Reading    " << foundFrequency << endl;
 //                        uint8_t data = ((foundFrequency - config.baseFreq) / ProtocolConstants::FREQUENCY_INTERVAL);
