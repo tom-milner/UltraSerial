@@ -6,6 +6,8 @@
 #define ULTRASERIAL_RINGBUFFER_H
 
 #include <iostream>
+#include <cstdlib>
+#include <cstring>
 
 template<typename T>
 class RingBuffer {
@@ -18,8 +20,6 @@ public:
 
     int put(T data);
 
-    int getItemCount();
-
 private:
     T *bufferPointer;
     unsigned int readIndex;
@@ -28,9 +28,6 @@ private:
     int itemCount;
 };
 
-
-#include <cstdlib>
-#include <cstring>
 
 // Create the ring buffer.
 template<typename T>
@@ -45,28 +42,23 @@ RingBuffer<T>::~RingBuffer() {
     free(bufferPointer);
 }
 
+/// This could be done more efficiently not keeping a count!
 template<typename T>
 int RingBuffer<T>::read(T *data) {
-    if (itemCount == 0) return 1;
+    if (itemCount == 0) return 0;
     *data = bufferPointer[readIndex];
-    readIndex = (readIndex + 1) % bufferSize;
+    readIndex = (readIndex + 1) % bufferSize; /// Performance can be increased by using an unsigned int as the read index the same size as the ring buffer - it will then overflow or underflow and 'wrap around' without having to use %.
     itemCount--;
-    return 0;
+    return 1;
 }
 
 template<typename T>
 int RingBuffer<T>::put(T data) {
-    if (itemCount == bufferSize) return 1;
+    if (itemCount == bufferSize) return 0;
     bufferPointer[writeIndex] = data;
     writeIndex = (writeIndex + 1) % bufferSize;
     itemCount++;
-    return 0;
+    return 1;
 }
-
-template<typename T>
-int RingBuffer<T>::getItemCount() {
-    return itemCount;
-}
-
 
 #endif //ULTRASERIAL_RINGBUFFER_H

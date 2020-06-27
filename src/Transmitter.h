@@ -16,7 +16,7 @@ public:
 
     void transmit(char *data, int dataLength);
 
-    int init(float ctrlFreq);
+    int init(float ctrlFreq, int method);
 
 private:
     float getNextSineSample();
